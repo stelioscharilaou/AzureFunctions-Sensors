@@ -16,8 +16,24 @@ slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
 threshold_temperature = 8
 threshold_humidity = 60.0
 
+
 @app.route(route="fridge-reading", methods=["POST"])
 def fridge_reading(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Azure Function to handle HTTP requests for recording fridge temperature and humidity readings.
+    Args:
+        req (func.HttpRequest): The HTTP request object containing JSON body with temperature, humidity, and fridge number.
+    Returns:
+        func.HttpResponse: The HTTP response object indicating the result of the operation.
+            - 200: Data recorded successfully.
+            - 400: Invalid temperature or humidity data.
+            - 500: Database error.
+    The function performs the following steps:
+    1. Logs the trigger of the function.
+    2. Parses the temperature, humidity, and fridge number from the JSON body of the request.
+    3. Connects to the database and inserts the parsed data into the FridgeReadings table.
+    4. Returns appropriate HTTP response based on the success or failure of the operation.
+    """
     logging.info("FridgeReading function triggered.")
 
     # Parse temperature and humidity from JSON body
@@ -51,15 +67,24 @@ def fridge_reading(req: func.HttpRequest) -> func.HttpResponse:
 # Timer Trigger Function (runs every minute)
 @app.function_name(name="check_recent_readings_timer")
 @app.schedule(
-    schedule="*/1 * * * *",  # CRON expression for every minute
-    arg_name="timer",  # The argument name must match here
+    schedule="*/1 * * * *",
+    arg_name="timer",
 )
 def check_recent_readings_timer(
     timer: func.TimerRequest,
-) -> None:  # Ensure this matches the `arg_name`
+) -> None:
+    """
+    This function is triggered by a timer and checks recent fridge readings from a database.
+    It retrieves readings from the last minute and checks if any readings surpass predefined temperature or humidity thresholds.
+    If any thresholds are breached, it sends an alert notification via Slack.
+    Args:
+        timer (func.TimerRequest): The timer request object that triggers this function.
+    Raises:
+        Exception: Logs any exceptions that occur during the execution of the function.
+    """
     logging.info("CheckRecentReadings function triggered.")
     try:
-        # Define the timestamp cutoff for "last minute"
+        # Define the timestamp cutoff for last minute
         cutoff_time = datetime.now() - timedelta(minutes=1)
 
         # Connect to the database and retrieve recent entries
@@ -102,10 +127,6 @@ def send_slack_notification(message: str):
 
     Raises:
         Exception: If there is an error sending the notification.
-
-    Logs:
-        Info: When the notification is sent successfully.
-        Error: When the notification fails to send or an exception occurs.
     """
     try:
         payload = {"text": message}
